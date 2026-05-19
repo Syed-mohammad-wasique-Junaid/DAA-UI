@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STATION REGISTRY — RECOVERY PROTOCOL</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Exo+2:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #00ff88;
+    --green-dim: rgba(0,255,136,0.5);
+    --green-faint: rgba(0,255,136,0.08);
+    --cyan: #00d4ff;
+    --cyan-dim: rgba(0,212,255,0.5);
+    --cyan-faint: rgba(0,212,255,0.07);
+    --amber: #ffaa00;
+    --red: #ff3c3c;
+    --bg: #030d08;
+    --surface: rgba(0,255,136,0.03);
+    --border: rgba(0,255,136,0.12);
+    --border-strong: rgba(0,255,136,0.3);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* ─── ANIMATED BACKGROUND ─── */
+  .bg-layer {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  }
+
+  .grid-lines {
+    background-image:
+      linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    animation: gridShift 20s linear infinite;
+  }
+
+  @keyframes gridShift {
+    from { background-position: 0 0; }
+    to   { background-position: 48px 48px; }
+  }
+
+  .scanlines {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,255,136,0.012) 3px,
+      rgba(0,255,136,0.012) 4px
+    );
+  }
+
+  .vignette {
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%);
+  }
+
+  .particles {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  }
+
+  .particle {
+    position: absolute;
+    width: 1px; height: 60px;
+    background: linear-gradient(to bottom, transparent, var(--green), transparent);
+    opacity: 0;
+    animation: fall var(--dur, 4s) linear var(--delay, 0s) infinite;
+  }
+
+  @keyframes fall {
+    0%   { transform: translateY(-100px); opacity: 0; }
+    10%  { opacity: 0.6; }
+    90%  { opacity: 0.3; }
+    100% { transform: translateY(100vh); opacity: 0; }
+  }
+
+  /* ─── LAYOUT ─── */
+  .page { display: none; position: relative; z-index: 1; min-height: 100vh; }
+  .page.active { display: block; }
+
+  .wrapper { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  /* ─── TOP BAR ─── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+    animation: slideDown 0.6s ease both;
+  }
+
+  @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+
+  .logo-ring {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid var(--green);
+    display: flex; align-items: center; justify-content: center;
+    animation: spin 8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .logo-inner {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green);
+    animation: pulseDot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseDot { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(0.5);opacity:0.4} }
+
+  .sys-id { font-size: 10px; letter-spacing: 3px; color: rgba(0,255,136,0.45); }
+
+  .status-cluster { display: flex; gap: 10px; align-items: center; }
+
+  .pill {
+    font-size: 9px; letter-spacing: 2px;
+    padding: 4px 12px; border-radius: 2px;
+  }
+
+  .pill-red {
+    background: rgba(255,60,60,0.1);
+    border: 1px solid rgba(255,60,60,0.35);
+    color: var(--red);
+    animation: blink 1.4s step-end infinite;
+  }
+
+  .pill-green {
+    background: rgba(0,255,136,0.08);
+    border: 1px solid rgba(0,255,136,0.3);
+    color: var(--green);
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+  .clock { font-size: 10px; color: rgba(0,255,136,0.35); letter-spacing: 1px; }
+
+  /* ─── PAGE 1 HERO ─── */
+  .hero {
+    padding: 48px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 36px;
+    animation: fadeUp 0.8s ease 0.2s both;
+  }
+
+  @keyframes fadeUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .level-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .tag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulseDot 1.8s ease-in-out infinite; }
+  .tag-text { font-size: 9px; letter-spacing: 5px; color: rgba(0,255,136,0.4); }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(24px, 4vw, 40px);
+    font-weight: 900;
+    line-height: 1.1;
+    color: var(--green);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    text-shadow: 0 0 40px rgba(0,255,136,0.3);
+  }
+
+  .hero-sub { font-size: 11px; color: rgba(0,255,136,0.35); letter-spacing: 3px; }
+
+  /* ─── ALERT ─── */
+  .alert {
+    position: relative;
+    border: 1px solid rgba(255,60,60,0.25);
+    background: rgba(255,60,60,0.04);
+    padding: 18px 20px;
+    margin-bottom: 32px;
+    border-left: 3px solid var(--red);
+    animation: fadeUp 0.8s ease 0.35s both;
+  }
+
+  .alert-tag {
+    position: absolute; top: -9px; left: 16px;
+    background: var(--bg); padding: 0 8px;
+    font-size: 9px; letter-spacing: 3px; color: var(--red);
+  }
+
+  .alert p { font-size: 12px; color: rgba(255,180,180,0.7); line-height: 1.9; font-family: 'Exo 2', sans-serif; font-weight: 300; }
+
+  /* ─── FORMULA ─── */
+  .formula-block {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--green-faint);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    animation: fadeUp 0.8s ease 0.45s both;
+  }
+
+  .formula-label { font-size: 9px; letter-spacing: 3px; color: rgba(0,255,136,0.4); white-space: nowrap; }
+
+  .formula-eq {
+    font-family: 'Orbitron', monospace;
+    font-size: 15px;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+
+  .formula-eq .accent { color: var(--cyan); }
+
+  /* ─── SECTION HEADER ─── */
+  .sec-hdr {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px; margin-top: 32px;
+    animation: fadeUp 0.8s ease 0.5s both;
+  }
+
+  .sec-line { flex: 1; height: 1px; background: var(--border); }
+  .sec-label { font-size: 9px; letter-spacing: 4px; color: rgba(0,255,136,0.35); white-space: nowrap; }
+
+  /* ─── STATION GRID ─── */
+  .stations-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.8s ease 0.55s both;
+  }
+
+  .s-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 12px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, transform 0.15s;
+    overflow: hidden;
+  }
+
+  .s-card::before {
+    content: '';
+    position: absolute; top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0,255,136,0.06), transparent);
+    transition: left 0.5s;
+  }
+
+  .s-card:hover::before { left: 100%; }
+
+  .s-card:hover {
+    border-color: var(--green-dim);
+    background: rgba(0,255,136,0.07);
+    transform: translateY(-2px);
+  }
+
+  .s-card.highlight {
+    border-color: var(--cyan-dim);
+    background: var(--cyan-faint);
+  }
+
+  .s-id {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px; font-weight: 700;
+    color: var(--green); margin-bottom: 4px;
+  }
+
+  .s-tag { font-size: 8px; letter-spacing: 2px; color: rgba(0,255,136,0.35); margin-bottom: 4px; }
+
+  .s-val {
+    font-size: 16px; font-weight: 600;
+    color: var(--cyan);
+    font-family: 'Orbitron', monospace;
+  }
+
+  /* ─── VISUALIZER STYLES ─── */
+  .visualizer-container {
+    position: relative;
+    border: 1px solid var(--border-strong);
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 2px;
+    margin-bottom: 32px;
+    padding: 16px;
+    animation: fadeUp 0.8s ease 0.5s both;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .visualizer-container canvas {
+    background: radial-gradient(circle at center, rgba(0,255,136,0.03) 0%, transparent 70%);
+    max-width: 100%;
+    height: auto;
+    border: 1px solid rgba(0,255,136,0.1);
+    border-radius: 2px;
+  }
+  .run-viz-btn {
+    margin-top: 16px;
+    background: rgba(0,255,136,0.05);
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'Orbitron', monospace;
+    font-size: 11px; letter-spacing: 2px;
+    padding: 10px 20px; cursor: pointer; border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .run-viz-btn:hover { background: rgba(0,255,136,0.15); box-shadow: 0 0 15px var(--green-faint); }
+  
+  #viz2 { background: radial-gradient(circle at center, rgba(0,212,255,0.03) 0%, transparent 70%); border-color: rgba(0,212,255,0.15); }
+  .run-viz-btn.v2 { border-color: var(--cyan); color: var(--cyan); background: rgba(0,212,255,0.05); }
+  .run-viz-btn.v2:hover { background: rgba(0,212,255,0.15); box-shadow: 0 0 15px var(--cyan-faint); }
+  
+  #viz3 { background: radial-gradient(circle at center, rgba(255,136,255,0.03) 0%, transparent 70%); border-color: rgba(255,136,255,0.15); }
+  .run-viz-btn.v3 { border-color: #ff88ff; color: #ff88ff; background: rgba(255,136,255,0.05); }
+  .run-viz-btn.v3:hover { background: rgba(255,136,255,0.15); box-shadow: 0 0 15px rgba(255,136,255,0.2); }
+
+  /* ─── DECODE TABLE ─── */
+  .toggle-row { margin-bottom: 12px; animation: fadeUp 0.8s ease 0.6s both; }
+
+  .toggle-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: rgba(0,255,136,0.55);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; letter-spacing: 2px;
+    padding: 7px 16px; cursor: pointer; border-radius: 2px;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .toggle-btn:hover { border-color: var(--green-dim); color: var(--green); }
+
+  .decode-table-wrap {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.5s ease;
+    animation: fadeUp 0.8s ease 0.65s both;
+  }
+
+  .decode-table-wrap.open { max-height: 600px; }
+
+  table.dtable {
+    width: 100%; border-collapse: collapse;
+    font-size: 11px; margin-bottom: 20px;
+  }
+
+  .dtable th {
+    font-size: 8px; letter-spacing: 3px;
+    color: rgba(0,255,136,0.35); text-align: left;
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    background: rgba(0,255,136,0.02);
+  }
+
+  .dtable td {
+    padding: 7px 10px; border-bottom: 1px solid rgba(0,255,136,0.04);
+    color: rgba(0,255,136,0.75); transition: background 0.15s;
+  }
+
+  .dtable tr:hover td { background: rgba(0,255,136,0.03); }
+  .dtable td.cv { color: var(--cyan); font-weight: 600; }
+  .dtable td.rv { color: var(--amber); }
+
+  /* ─── TASKS ─── */
+  .tasks { margin-bottom: 28px; animation: fadeUp 0.8s ease 0.7s both; }
+
+  .task-row {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 12px 0; border-bottom: 1px solid rgba(0,255,136,0.05);
+  }
+
+  .t-num {
+    width: 28px; height: 28px; flex-shrink: 0;
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 50%; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 10px; color: rgba(0,255,136,0.45);
+    font-family: 'Orbitron', monospace;
+  }
+
+  .t-text {
+    font-size: 12px; color: rgba(0,255,136,0.7);
+    line-height: 1.7; font-family: 'Exo 2', sans-serif;
+    font-weight: 300; padding-top: 5px;
+  }
+
+  /* ─── INVERSION BOX ─── */
+  .inv-box {
+    position: relative;
+    border: 1px solid rgba(0,212,255,0.2);
+    background: rgba(0,212,255,0.04);
+    padding: 20px 20px;
+    margin-bottom: 20px;
+    border-radius: 2px;
+    animation: fadeUp 0.8s ease 0.75s both;
+  }
+
+  .inv-box::before {
+    content: 'INVERSION CONDITION';
+    position: absolute; top: -9px; left: 16px;
+    background: var(--bg); padding: 0 8px;
+    font-size: 9px; letter-spacing: 3px; color: var(--cyan);
+  }
+
+  .inv-formula {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px; color: var(--cyan);
+    margin-bottom: 10px; letter-spacing: 2px;
+  }
+
+  .inv-formula .op { color: var(--amber); }
+
+  .inv-desc {
+    font-size: 12px; color: rgba(0,212,255,0.55);
+    line-height: 1.8; font-family: 'Exo 2', sans-serif; font-weight: 300;
+  }
+
+  /* ─── CLUE ─── */
+  .clue-box {
+    position: relative;
+    border: 1px solid rgba(255,170,0,0.2);
+    background: rgba(255,170,0,0.04);
+    padding: 18px 20px;
+    margin-bottom: 36px;
+    border-radius: 2px;
+    animation: fadeUp 0.8s ease 0.8s both;
+  }
+
+  .clue-box::before {
+    content: '◈ ALGORITHM CLUE';
+    position: absolute; top: -9px; left: 16px;
+    background: var(--bg); padding: 0 8px;
+    font-size: 9px; letter-spacing: 3px; color: var(--amber);
+  }
+
+  .clue-text {
+    font-size: 12px; color: rgba(255,190,80,0.75);
+    line-height: 1.9; font-family: 'Exo 2', sans-serif; font-weight: 300;
+  }
+
+  .clue-text strong { color: var(--amber); font-family: 'Share Tech Mono', monospace; font-weight: 400; }
+
+  /* ─── FOOTER NAV ─── */
+  .footer-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 24px; border-top: 1px solid var(--border);
+    animation: fadeUp 0.8s ease 0.85s both;
+  }
+
+  .footer-note {
+    font-size: 10px; color: rgba(0,255,136,0.3);
+    max-width: 420px; line-height: 1.8; font-family: 'Exo 2', sans-serif;
+  }
+
+  .footer-note em { color: var(--cyan); font-style: normal; }
+
+  .next-btn {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: transparent;
+    border: 1px solid rgba(0,255,136,0.4);
+    color: var(--green);
+    font-family: 'Orbitron', monospace;
+    font-size: 11px; letter-spacing: 3px;
+    padding: 14px 28px; cursor: pointer; border-radius: 2px;
+    transition: all 0.25s; text-transform: uppercase;
+    position: relative; overflow: hidden;
+  }
+
+  .next-btn::before {
+    content: '';
+    position: absolute; top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0,255,136,0.07), transparent);
+    transition: left 0.4s;
+  }
+
+  .next-btn:hover::before { left: 100%; }
+
+  .next-btn:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 20px rgba(0,255,136,0.12), inset 0 0 20px rgba(0,255,136,0.04);
+  }
+
+  .next-btn .arr { font-size: 18px; transition: transform 0.2s; }
+  .next-btn:hover .arr { transform: translateX(5px); }
+
+  /* ─── CORNER DECO ─── */
+  .corner {
+    position: fixed; width: 40px; height: 40px; pointer-events: none; z-index: 5;
+  }
+
+  .corner-tl { top: 0; left: 0; border-top: 1.5px solid rgba(0,255,136,0.25); border-left: 1.5px solid rgba(0,255,136,0.25); }
+  .corner-tr { top: 0; right: 0; border-top: 1.5px solid rgba(0,255,136,0.25); border-right: 1.5px solid rgba(0,255,136,0.25); }
+  .corner-bl { bottom: 0; left: 0; border-bottom: 1.5px solid rgba(0,255,136,0.25); border-left: 1.5px solid rgba(0,255,136,0.25); }
+  .corner-br { bottom: 0; right: 0; border-bottom: 1.5px solid rgba(0,255,136,0.25); border-right: 1.5px solid rgba(0,255,136,0.25); }
+
+  /* ─── GLITCH EFFECT ─── */
+  .glitch { position: relative; display: inline-block; }
+
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    font-family: inherit; font-size: inherit; font-weight: inherit;
+    letter-spacing: inherit; color: inherit;
+  }
+
+  .glitch::before {
+    left: 2px; color: rgba(0,212,255,0.6);
+    animation: glitch1 4s infinite steps(1);
+    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+  }
+
+  .glitch::after {
+    left: -2px; color: rgba(255,60,60,0.4);
+    animation: glitch2 4s infinite steps(1);
+    clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+  }
+
+  @keyframes glitch1 {
+    0%,90%,100% { transform: none; opacity: 0; }
+    92% { transform: translate(-1px,0) skew(1deg); opacity: 1; }
+    94% { transform: translate(1px,0); opacity: 0.5; }
+    96% { transform: none; opacity: 0; }
+  }
+
+  @keyframes glitch2 {
+    0%,90%,100% { transform: none; opacity: 0; }
+    93% { transform: translate(2px,0) skew(-1deg); opacity: 1; }
+    95% { transform: none; opacity: 0; }
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 640px) {
+    .stations-grid { grid-template-columns: repeat(4, 1fr); }
+    .footer-nav { flex-direction: column; gap: 20px; text-align: center; }
+  }
+
+  @media (max-width: 440px) {
+    .stations-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Corners -->
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<!-- Background -->
+<div class="bg-layer grid-lines"></div>
+<div class="bg-layer scanlines"></div>
+<div class="bg-layer vignette"></div>
+<div class="particles" id="particles"></div>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-ring"><div class="logo-inner"></div></div>
+    <span class="sys-id">SMARTCITY_CTRL_v2.4 // REGISTRY_RECOVERY_SYS</span>
+  </div>
+  <div class="status-cluster">
+    <span class="pill pill-red">◉ CORRUPTED</span>
+    <span class="pill pill-green">RECOVERY ACTIVE</span>
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+</div>
+
+<!-- ══════════ PAGE 1 ══════════ -->
+<div class="page active" id="page1">
+<div class="wrapper">
+
+  <div class="hero">
+    <div class="level-tag">
+      <div class="tag-dot"></div>
+      <span class="tag-text">LEVEL 01 // INITIATED</span>
+    </div>
+    <h1 class="glitch" data-text="STATION ORDERING &amp;">STATION ORDERING &amp;</h1>
+    <h1 class="glitch" data-text="DISORDER ANALYSIS">DISORDER ANALYSIS</h1>
+    <div class="hero-sub" style="margin-top:12px">SIGNAL RECOVERY PROTOCOL // PRIMARY CONTROL RING // 14 NODES</div>
+  </div>
+
+  <div class="alert">
+    <span class="alert-tag">⚠ SYSTEM ALERT</span>
+    <p>The outer control ring of the smart city has suffered a synchronization failure. The station registry containing the city's primary control stations has become corrupted, leaving the activation sequence completely disordered. Before recovery can begin, every station must first be converted into its numerical signal representation.</p>
+  </div>
+
+  <div class="formula-block">
+    <span class="formula-label">SIGNAL FORMULA</span>
+    <div class="formula-eq">VALUE = <span class="accent">ASCII(letter1)</span> + <span class="accent">ASCII(letter2)</span></div>
+  </div>
+
+  <div class="sec-hdr">
+    <div class="sec-label">INPUT STATIONS — CORRUPTED ORDER</div>
+    <div class="sec-line"></div>
+  </div>
+
+  <div class="stations-grid" id="stationsGrid"></div>
+
+  <!-- LEVEL 1 VISUALIZER -->
+  <div class="sec-hdr">
+    <div class="sec-label" style="color:rgba(0,255,136,0.5);">LIVE VISUALIZATION — STATION ORDERING</div>
+    <div class="sec-line"></div>
+  </div>
+  <div class="visualizer-container">
+    <canvas id="viz1" width="912" height="150"></canvas>
+    <button class="run-viz-btn" onclick="runViz1()">[ EXECUTE SORT ALGORITHM ]</button>
+  </div>
+
+  <div class="toggle-row">
+    <button class="toggle-btn" id="toggleBtn" onclick="toggleDecode()">[ DECODE SIGNAL VALUES ▾ ]</button>
+  </div>
+
+  <div class="decode-table-wrap" id="decodeWrap">
+    <table class="dtable">
+      <thead>
+        <tr>
+          <th>STATION ID</th>
+          <th>L1</th>
+          <th>ASCII1</th>
+          <th>L2</th>
+          <th>ASCII2</th>
+          <th>SIGNAL VALUE</th>
+          <th>SORTED RANK</th>
+        </tr>
+      </thead>
+      <tbody id="decodeBody"></tbody>
+    </table>
+  </div>
+
+  <div class="sec-hdr">
+    <div class="sec-label">YOUR TASK IS TO</div>
+    <div class="sec-line"></div>
+  </div>
+
+  <div class="tasks">
+    <div class="task-row">
+      <div class="t-num">01</div>
+      <div class="t-text">Compute the numerical signal value of every station using ASCII(letter1) + ASCII(letter2)</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num">02</div>
+      <div class="t-text">Restore the stations into ascending order by their computed signal values</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num">03</div>
+      <div class="t-text">Determine how disordered the original arrangement was — the disorder is measured using inversion count</div>
+    </div>
+  </div>
+
+  <div class="inv-box">
+    <div class="inv-formula">i <span class="op">&lt;</span> j &nbsp;&nbsp; AND &nbsp;&nbsp; Value(i) <span class="op">&gt;</span> Value(j)</div>
+    <div class="inv-desc">An inversion occurs whenever a station appearing earlier in the corrupted registry (lower index i) has a higher signal value than a station appearing later (higher index j). Count all such pairs to quantify the total disorder of the registry.</div>
+  </div>
+
+  <div class="clue-box">
+    <div class="clue-text">The optimal strategy <strong>recursively divides</strong> data into smaller sections, solves each independently, then <strong>combines them while counting misplaced pairs</strong>. Think of a sorting algorithm that naturally surfaces inversions during its merge step.</div>
+  </div>
+
+  <div class="footer-nav">
+    <div class="footer-note">Use the final sorted station order from Level 1 as the <em>station layout reference</em> for the dependency matrix in Level 2.</div>
+    <button class="next-btn" onclick="goToLevel2()">
+      PROCEED TO LEVEL 2
+      <span class="arr">→</span>
+    </button>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════ PAGE 2 — LEVEL 2: DEPENDENCY RESOLUTION ══════════ -->
+<div class="page" id="page2">
+<div class="wrapper">
+
+  <div class="p2-header">
+    <div class="p2-badge">◈ LEVEL 02 // DEPENDENCY RESOLUTION</div>
+    <div class="p2-title glitch" data-text="DEPENDENCY RESOLUTION">DEPENDENCY RESOLUTION</div>
+    <div class="p2-sub">ACTIVATION SEQUENCING // TOPOLOGICAL ORDERING // 14 NODES</div>
+  </div>
+
+  <!-- Warning -->
+  <div class="alert" style="border-left-color: var(--amber); border-color: rgba(255,170,0,0.25); background: rgba(255,170,0,0.04); margin-bottom:28px;">
+    <span class="alert-tag" style="color:var(--amber);">⚡ NETWORK WARNING</span>
+    <p style="color: rgba(255,210,120,0.75);">With the station registry restored from Level 1, the smart city now attempts to reboot its distributed control network. However, the recovery process encounters a critical issue — several control stations cannot activate independently. Each station relies on signals from other stations before it can safely come online. Activating a station before its required dependencies are satisfied may trigger synchronization failures across the grid and destabilize the recovery process.</p>
+  </div>
+
+  <!-- System message -->
+  <div class="inv-box" style="border-color: rgba(255,170,0,0.2); background: rgba(255,170,0,0.04);">
+    <div style="position:absolute;top:-9px;left:16px;background:var(--bg);padding:0 8px;font-size:9px;letter-spacing:3px;color:var(--amber);">CENTRAL SYSTEM MESSAGE</div>
+    <div style="font-family:'Exo 2',sans-serif;font-size:12px;color:rgba(255,210,120,0.7);line-height:1.9;font-style:italic;">
+      "Dependency constraints detected. Multiple control stations require prerequisite activations. Construct a valid execution sequence before system-wide synchronization can continue."
+    </div>
+  </div>
+
+  <!-- Matrix Explanation -->
+  <div class="sec-hdr" style="margin-top:28px;">
+    <div class="sec-label" style="color:rgba(0,212,255,0.35);">DEPENDENCY MATRIX — FROM IMAGE (ROW X DEPENDS ON COL Y)</div>
+    <div class="sec-line" style="background:rgba(0,212,255,0.1)"></div>
+  </div>
+
+  <div class="matrix-intro">
+    You are given a <strong>dependency matrix</strong> representing activation relationships between stations. A value of <strong>1</strong> at row X and column Y indicates that <strong>station X depends on station Y</strong> — meaning station Y must be activated first.
+  </div>
+
+  <div class="matrix-wrap">
+    <table class="dep-mat" id="depMatrix2"></table>
+  </div>
+
+  <!-- LEVEL 2 VISUALIZER -->
+  <div class="sec-hdr" style="margin-top:28px;">
+    <div class="sec-label" style="color:rgba(0,212,255,0.5);">LIVE VISUALIZATION — DEPENDENCY RESOLUTION</div>
+    <div class="sec-line" style="background:rgba(0,212,255,0.1)"></div>
+  </div>
+  <div class="visualizer-container">
+    <canvas id="viz2" width="912" height="340"></canvas>
+    <button class="run-viz-btn v2" onclick="runViz2()">[ RESOLVE DEPENDENCIES ]</button>
+  </div>
+
+  <!-- Tasks -->
+  <div class="sec-hdr" style="margin-top:8px;">
+    <div class="sec-label" style="color:rgba(0,212,255,0.35);">YOUR TASK IS TO</div>
+    <div class="sec-line" style="background:rgba(0,212,255,0.1)"></div>
+  </div>
+
+  <div class="tasks" style="margin-bottom:24px;">
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(0,212,255,0.25);color:rgba(0,212,255,0.5);">01</div>
+      <div class="t-text" style="color:rgba(0,212,255,0.75);">Determine a valid activation sequence such that every station is activated exactly once</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(0,212,255,0.25);color:rgba(0,212,255,0.5);">02</div>
+      <div class="t-text" style="color:rgba(0,212,255,0.75);">Ensure all dependency constraints are satisfied — no station activates before its prerequisites</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(0,212,255,0.25);color:rgba(0,212,255,0.5);">03</div>
+      <div class="t-text" style="color:rgba(0,212,255,0.75);">Ensure the entire control network initializes successfully without conflict or cycle</div>
+    </div>
+  </div>
+
+  <!-- Computed Topological Order -->
+  <div class="sec-hdr">
+    <div class="sec-label" style="color:rgba(0,212,255,0.35);">COMPUTED VALID ACTIVATION SEQUENCE</div>
+    <div class="sec-line" style="background:rgba(0,212,255,0.1)"></div>
+  </div>
+
+  <div class="topo-flow" id="topoFlow"></div>
+
+  <!-- Clue -->
+  <div class="clue-box" style="border-color:rgba(0,212,255,0.18);background:rgba(0,212,255,0.04);margin-top:24px;">
+    <div style="position:absolute;top:-9px;left:16px;background:var(--bg);padding:0 8px;font-size:9px;letter-spacing:3px;color:var(--cyan);">◈ ALGORITHM CLUE</div>
+    <div class="clue-text" style="color:rgba(100,220,255,0.75);">Construct a valid execution sequence while <strong style="color:var(--cyan);font-family:'Share Tech Mono',monospace;">respecting all dependency constraints</strong>. Process nodes with zero in-degree first, then iteratively reduce the graph. This classical graph traversal reveals the correct activation order.</div>
+  </div>
+
+  <!-- Footer note about L3 -->
+  <div class="footer-nav" style="margin-top:32px;">
+    <button class="back-btn" onclick="navigate('page1','page2')">← BACK TO LEVEL 1</button>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+      <div class="footer-note" style="text-align:right;">Use the Level 2 activation sequence as the <em>row and column ordering reference</em> for the weighted connectivity matrix in Level 3.</div>
+      <button class="next-btn" onclick="navigate('page3','page2')" style="border-color:rgba(0,212,255,0.4);color:var(--cyan);">
+        PROCEED TO LEVEL 3
+        <span class="arr">→</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════ PAGE 3 — LEVEL 3: NETWORK RECONSTRUCTION ══════════ -->
+<div class="page" id="page3">
+<div class="wrapper">
+
+  <div class="p2-header" style="padding-bottom:28px;">
+    <div class="p2-badge" style="background:rgba(255,100,255,0.07);border-color:rgba(255,100,255,0.25);color:#ff88ff;">◈ LEVEL 03 // NETWORK RECONSTRUCTION</div>
+    <div class="p2-title glitch" data-text="NETWORK RECONSTRUCTION" style="color:#ff88ff;text-shadow:0 0 40px rgba(255,136,255,0.25);" data-text2="NETWORK RECONSTRUCTION">NETWORK RECONSTRUCTION</div>
+    <div class="p2-sub" style="color:rgba(255,136,255,0.35);">MINIMUM COST BACKBONE // KRUSKAL'S ALGORITHM</div>
+  </div>
+
+  <!-- Alert -->
+  <div class="alert" style="border-left-color:#ff88ff;border-color:rgba(255,136,255,0.2);background:rgba(255,136,255,0.04);margin-bottom:28px;">
+    <span class="alert-tag" style="color:#ff88ff;">◉ INFRASTRUCTURE FAILURE DETECTED</span>
+    <p style="color:rgba(255,200,255,0.7);">The smart city's primary communication backbone has suffered severe structural damage after a cascading power failure disrupted multiple transmission sectors. Emergency repair drones have been deployed, but restoration resources are limited. Every reconnection between two stations consumes repair energy, and unnecessary links may overload the already unstable network. Rebuild the smart-grid backbone while minimizing total restoration cost. Redundant cyclic pathways must be avoided to preserve network stability.</p>
+  </div>
+
+  <!-- System message -->
+  <div class="inv-box" style="border-color: rgba(255,136,255,0.2); background: rgba(255,136,255,0.04);">
+    <div style="position:absolute;top:-9px;left:16px;background:var(--bg);padding:0 8px;font-size:9px;letter-spacing:3px;color:#ff88ff;">CENTRAL SYSTEM MESSAGE</div>
+    <div style="font-family:'Exo 2',sans-serif;font-size:12px;color:rgba(255,200,255,0.7);line-height:1.9;font-style:italic;">
+      "Critical infrastructure failure detected. Communication pathways between control stations have collapsed. Rebuild the smart-grid backbone while minimizing total restoration cost. Redundant cyclic pathways must be avoided to preserve network stability."
+    </div>
+  </div>
+
+  <!-- Activation sequence reference -->
+  <div class="sec-hdr" style="margin-top:28px;">
+    <div class="sec-label" style="color:rgba(255,136,255,0.35);">ACTIVATION SEQUENCE FROM LEVEL 2 (ROW/COL REFERENCE)</div>
+    <div class="sec-line" style="background:rgba(255,136,255,0.1)"></div>
+  </div>
+
+  <div class="sorted-chips" id="l3Chips" style="margin-bottom:24px;"></div>
+
+  <!-- Weighted matrix -->
+  <div class="sec-hdr" style="margin-top:8px;">
+    <div class="sec-label" style="color:rgba(255,136,255,0.35);">WEIGHTED CONNECTIVITY MATRIX</div>
+    <div class="sec-line" style="background:rgba(255,136,255,0.1)"></div>
+  </div>
+
+  <div class="matrix-intro" style="color:rgba(255,180,255,0.6);">
+    You are given a <strong style="color:#ff88ff;font-family:'Share Tech Mono',monospace;">weighted connectivity matrix</strong> representing the repair cost required to directly reconnect pairs of stations. A value of <strong style="color:#ff88ff;">-1</strong> indicates that no direct connection exists between two stations.
+  </div>
+
+  <div class="matrix-wrap" style="margin-bottom:24px;">
+    <table class="dep-mat" id="weightedMatrix" style="--mat-link-bg:rgba(255,136,255,0.08);--mat-link-col:#ff88ff;"></table>
+  </div>
+
+  <!-- LEVEL 3 VISUALIZER -->
+  <div class="sec-hdr" style="margin-top:8px;">
+    <div class="sec-label" style="color:rgba(255,136,255,0.5);">LIVE VISUALIZATION — MINIMUM SPANNING TREE</div>
+    <div class="sec-line" style="background:rgba(255,136,255,0.1)"></div>
+  </div>
+  <div class="visualizer-container">
+    <canvas id="viz3" width="912" height="340"></canvas>
+    <button class="run-viz-btn v3" onclick="runViz3()">[ CONSTRUCT NETWORK ]</button>
+  </div>
+
+  <!-- Level 3 tasks -->
+  <div class="sec-hdr">
+    <div class="sec-label" style="color:rgba(255,136,255,0.35);">YOUR TASK IS TO</div>
+    <div class="sec-line" style="background:rgba(255,136,255,0.1)"></div>
+  </div>
+
+  <div class="tasks" style="margin-bottom:24px;">
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,136,255,0.25);color:rgba(255,136,255,0.5);">01</div>
+      <div class="t-text" style="color:rgba(255,180,255,0.75);">Restore full communication across the network such that every station becomes reachable</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,136,255,0.25);color:rgba(255,136,255,0.5);">02</div>
+      <div class="t-text" style="color:rgba(255,180,255,0.75);">Minimize the total restoration cost — select only the cheapest safe connections</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,136,255,0.25);color:rgba(255,136,255,0.5);">03</div>
+      <div class="t-text" style="color:rgba(255,180,255,0.75);">Ensure no circular redundancy is introduced into the final structure</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,136,255,0.25);color:rgba(255,136,255,0.5);">04</div>
+      <div class="t-text" style="color:rgba(255,180,255,0.75);"><strong>After constructing the minimum-cost network, compute the total restoration cost. Convert this value to binary to unlock the next level.</strong></div>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="sec-hdr">
+    <div class="sec-label" style="color:rgba(255,136,255,0.35);">NETWORK STATISTICS</div>
+    <div class="sec-line" style="background:rgba(255,136,255,0.1)"></div>
+  </div>
+
+  <div id="networkStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;"></div>
+
+  <!-- Clue -->
+  <div class="clue-box" style="border-color:rgba(255,136,255,0.18);background:rgba(255,136,255,0.04);">
+    <div style="position:absolute;top:-9px;left:16px;background:var(--bg);padding:0 8px;font-size:9px;letter-spacing:3px;color:#ff88ff;">◈ ALGORITHM CLUE</div>
+    <div class="clue-text" style="color:rgba(255,200,255,0.75);">Build the network by repeatedly selecting the <strong style="color:#ff88ff;font-family:'Share Tech Mono',monospace;">cheapest safe connection</strong> while avoiding circular redundancy. Sort all edges by weight and add them greedily if they don't form a cycle.</div>
+  </div>
+
+  <!-- Unlock Code -->
+  <div class="inv-box" style="border-color:rgba(255,136,255,0.3); background:rgba(255,136,255,0.05); text-align:center; padding:32px 20px; margin-top:24px;">
+    <div style="font-family:'Orbitron',monospace; font-size:14px; color:#ff88ff; letter-spacing:2px; margin-bottom:16px;">ENTER FINAL UNLOCK CODE (BINARY)</div>
+    <input type="text" id="unlockCodeInput3" placeholder="XXXXXX" style="background:rgba(0,0,0,0.6); border:1px solid rgba(255,136,255,0.5); color:#ff88ff; font-family:'Orbitron',monospace; font-size:24px; text-align:center; padding:12px; width:200px; border-radius:2px; outline:none;">
+    <button class="run-viz-btn" style="border-color:#ff88ff; color:var(--bg); background:#ff88ff; margin-left:12px; font-weight:bold;" onclick="verifyL3Code()">[ VERIFY ]</button>
+    <div id="verifyResult3" style="margin-top:16px; font-family:'Share Tech Mono',monospace; font-size:14px; letter-spacing:2px; height:20px;"></div>
+  </div>
+
+  <div class="footer-nav" style="margin-top:32px;">
+    <button class="back-btn" onclick="navigate('page2','page3')" style="border-color:rgba(255,136,255,0.3);color:#ff88ff;">← BACK TO LEVEL 2</button>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+      <div class="footer-note" style="text-align:right;color:rgba(255,136,255,0.5);">Enter the Central Energy Command Vault.</div>
+      <button class="next-btn" onclick="navigate('page4','page3')" style="border-color:#ffaa00;color:var(--amber);">
+        PROCEED TO LEVEL 4
+        <span class="arr">→</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════ PAGE 4 — LEVEL 4: THE GRID OF VITAL ENERGY ══════════ -->
+<div class="page" id="page4">
+<div class="wrapper">
+
+  <div class="p2-header" style="padding-bottom:28px; border-bottom-color:rgba(255,170,0,0.1);">
+    <div class="p2-badge" style="background:rgba(255,170,0,0.07);border-color:rgba(255,170,0,0.25);color:var(--amber);">◈ LEVEL 04 // THE GRID OF VITAL ENERGY</div>
+    <div class="p2-title glitch" data-text="THE GRID OF VITAL ENERGY" style="color:var(--amber);text-shadow:0 0 40px rgba(255,170,0,0.25);">THE GRID OF VITAL ENERGY</div>
+    <div class="p2-sub" style="color:rgba(255,170,0,0.35);">CENTRAL ENERGY COMMAND VAULT // RESOURCE ALLOCATION</div>
+  </div>
+
+  <div class="alert" style="border-left-color:var(--amber);border-color:rgba(255,170,0,0.2);background:rgba(255,170,0,0.04);margin-bottom:28px;">
+    <span class="alert-tag" style="color:var(--amber);">⚡ CRITICAL ENERGY SHORTAGE DETECTED</span>
+    <p style="color:rgba(255,210,120,0.7);">Deep beneath the smart city lies the Central Energy Command Vault. The city's reserves are running dangerously low (Total Available: 20 kWh). Six city zones now compete for limited power reserves. Each activation decision affects the stability of the grid. Certain zones influence the efficiency of others through hidden synchronization effects. Choose wisely and maximize the city's survival benefit before total shutdown occurs.</p>
+  </div>
+
+  <div class="sec-hdr">
+    <div class="sec-label" style="color:rgba(255,170,0,0.35);">ENERGY GRID DATA</div>
+    <div class="sec-line" style="background:rgba(255,170,0,0.1)"></div>
+  </div>
+
+  <div class="matrix-wrap" style="margin-bottom:24px;">
+    <table class="dep-mat" id="l4Table" style="--mat-link-bg:rgba(255,170,0,0.08);--mat-link-col:var(--amber);">
+      <thead>
+        <tr>
+          <th style="color:rgba(255,170,0,0.5);border-color:rgba(255,170,0,0.1);background:rgba(255,170,0,0.05);">ZONE</th>
+          <th style="color:rgba(255,170,0,0.5);border-color:rgba(255,170,0,0.1);background:rgba(255,170,0,0.05);">ENERGY COST (kWh)</th>
+          <th style="color:rgba(255,170,0,0.5);border-color:rgba(255,170,0,0.1);background:rgba(255,170,0,0.05);">BASE BENEFIT</th>
+          <th style="color:rgba(255,170,0,0.5);border-color:rgba(255,170,0,0.1);background:rgba(255,170,0,0.05);text-align:left;">SYNCHRONIZATION RULE</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="color:var(--amber);font-weight:bold;">Zone A</td><td>6</td><td>12</td><td style="text-align:left;">If activated before Zone B, reduce Zone B's cost from 8 → 5</td></tr>
+        <tr><td style="color:var(--amber);font-weight:bold;">Zone B</td><td>8 → 5</td><td>14</td><td style="text-align:left;">Costs 5 only if Zone A was already activated</td></tr>
+        <tr><td style="color:var(--amber);font-weight:bold;">Zone C</td><td>5</td><td>9</td><td style="text-align:left;">If selected after Zone D, gains an additional +4 benefit</td></tr>
+        <tr><td style="color:var(--amber);font-weight:bold;">Zone D</td><td>7</td><td>13</td><td style="text-align:left;">Stabilizes nearby sectors when activated (no direct numerical effect)</td></tr>
+        <tr><td style="color:var(--amber);font-weight:bold;">Zone E</td><td>4</td><td>8</td><td style="text-align:left;">If selected together with Zone C, reduce Zone C's cost by 1</td></tr>
+        <tr><td style="color:var(--amber);font-weight:bold;">Zone F</td><td>3</td><td>0</td><td style="text-align:left;">Consumes energy but provides no direct benefit</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sec-hdr" style="margin-top:8px;">
+    <div class="sec-label" style="color:rgba(255,170,0,0.5);">LIVE VISUALIZATION — GRID ALLOCATION SIMULATOR</div>
+    <div class="sec-line" style="background:rgba(255,170,0,0.1)"></div>
+  </div>
+
+  <div class="visualizer-container" style="border-color:rgba(255,170,0,0.2); background:rgba(20,10,0,0.4);">
+    <div id="l4Simulator" style="width:100%; display:flex; flex-direction:column; gap:20px;">
+      
+      <!-- Gauges -->
+      <div style="display:flex; justify-content:space-between; gap:20px;">
+        <div style="flex:1; background:rgba(255,170,0,0.05); border:1px solid rgba(255,170,0,0.2); padding:16px; border-radius:2px;">
+          <div style="font-size:10px; color:rgba(255,170,0,0.5); letter-spacing:2px; margin-bottom:8px;">ENERGY CONSUMED (MAX 20)</div>
+          <div style="width:100%; height:12px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,170,0,0.3); border-radius:6px; overflow:hidden;">
+            <div id="energyBar" style="height:100%; width:0%; background:var(--amber); transition:width 0.3s, background 0.3s;"></div>
+          </div>
+          <div id="energyText" style="font-family:'Orbitron',monospace; font-size:18px; color:var(--amber); margin-top:8px; text-align:right;">0 / 20 kWh</div>
+        </div>
+        <div style="flex:1; background:rgba(0,255,136,0.05); border:1px solid rgba(0,255,136,0.2); padding:16px; border-radius:2px;">
+          <div style="font-size:10px; color:rgba(0,255,136,0.5); letter-spacing:2px; margin-bottom:8px;">TOTAL SURVIVAL BENEFIT</div>
+          <div style="width:100%; height:12px; background:rgba(0,0,0,0.5); border:1px solid rgba(0,255,136,0.3); border-radius:6px; overflow:hidden;">
+            <div id="benefitBar" style="height:100%; width:0%; background:var(--green); transition:width 0.3s;"></div>
+          </div>
+          <div id="benefitText" style="font-family:'Orbitron',monospace; font-size:18px; color:var(--green); margin-top:8px; text-align:right;">0</div>
+        </div>
+      </div>
+
+      <!-- Zone Selection Buttons -->
+      <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:10px;" id="zoneButtons">
+        <!-- populated by js -->
+      </div>
+
+      <div style="display:flex; justify-content:center; gap:16px; margin-top:10px;">
+        <button class="run-viz-btn" style="border-color:var(--amber); color:var(--amber); background:rgba(255,170,0,0.05);" onclick="resetL4()">[ RESET GRID ]</button>
+        <button class="run-viz-btn" style="border-color:var(--cyan); color:var(--cyan); background:rgba(0,212,255,0.05);" onclick="autoSolveL4()">[ FIND OPTIMAL ALLOCATION ]</button>
+      </div>
+      
+      <!-- Selection sequence -->
+      <div style="font-size:10px; color:rgba(255,170,0,0.4); text-align:center; letter-spacing:2px; margin-top:10px;">
+        ACTIVATION SEQUENCE: <span id="l4Sequence" style="color:var(--amber); font-family:'Orbitron',monospace;">NONE</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="sec-hdr">
+    <div class="sec-label" style="color:rgba(255,170,0,0.35);">FINAL GRID VERIFICATION PROTOCOL</div>
+    <div class="sec-line" style="background:rgba(255,170,0,0.1)"></div>
+  </div>
+
+  <div class="tasks" style="margin-bottom:24px;">
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,170,0,0.25);color:rgba(255,170,0,0.5);">01</div>
+      <div class="t-text" style="color:rgba(255,200,150,0.75);">Compute the Grid Sum: <strong>S = B + E + n</strong> <br><span style="font-size:10px;color:rgba(255,170,0,0.5);">(B = Total Benefit, E = Total Energy Used, n = Number of selected zones)</span></div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,170,0,0.25);color:rgba(255,170,0,0.5);">02</div>
+      <div class="t-text" style="color:rgba(255,200,150,0.75);">Compute the Stability Factor: <strong>F = (digit sum of B) × (digit sum of E)</strong></div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,170,0,0.25);color:rgba(255,170,0,0.5);">03</div>
+      <div class="t-text" style="color:rgba(255,200,150,0.75);">Generate the Numeric Access Key: <strong>K = S + (F / 3)</strong> (Take only the integer part of K)</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,170,0,0.25);color:rgba(255,170,0,0.5);">04</div>
+      <div class="t-text" style="color:rgba(255,200,150,0.75);">Add Synchronization Constant: <strong>Final Numeric Key = K + (n - 1)</strong></div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,170,0,0.25);color:rgba(255,170,0,0.5);">05</div>
+      <div class="t-text" style="color:rgba(255,200,150,0.75);">Generate the Final Unlock Code: Append <strong>GRID</strong> to the Final Numeric Key.</div>
+    </div>
+  </div>
+
+  <div class="inv-box" style="border-color:rgba(255,170,0,0.3); background:rgba(255,170,0,0.05); text-align:center; padding:32px 20px;">
+    <div style="font-family:'Orbitron',monospace; font-size:14px; color:var(--amber); letter-spacing:2px; margin-bottom:16px;">ENTER FINAL UNLOCK CODE</div>
+    <input type="text" id="unlockCodeInput" placeholder="XXXXGRID" style="background:rgba(0,0,0,0.6); border:1px solid rgba(255,170,0,0.5); color:var(--amber); font-family:'Orbitron',monospace; font-size:24px; text-align:center; padding:12px; width:200px; border-radius:2px; outline:none; text-transform:uppercase;">
+    <button class="run-viz-btn" style="border-color:var(--amber); color:var(--bg); background:var(--amber); margin-left:12px; font-weight:bold;" onclick="verifyL4Code()">[ VERIFY ]</button>
+    <div id="verifyResult" style="margin-top:16px; font-family:'Share Tech Mono',monospace; font-size:14px; letter-spacing:2px; height:20px;"></div>
+  </div>
+
+  <div class="footer-nav" style="margin-top:32px;">
+    <button class="back-btn" onclick="navigate('page3','page4')" style="border-color:rgba(255,170,0,0.3);color:var(--amber);">← BACK TO LEVEL 3</button>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+      <div class="footer-note" style="text-align:right;color:rgba(255,170,0,0.5);">Access Critical Route Recovery.</div>
+      <button class="next-btn" onclick="navigate('page5','page4')" style="border-color:#ff3c3c;color:var(--red);">
+        PROCEED TO LEVEL 5
+        <span class="arr">→</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════ PAGE 5 — LEVEL 5: CRITICAL ROUTE RECOVERY ══════════ -->
+<div class="page" id="page5">
+<div class="wrapper">
+
+  <div class="p2-header" style="padding-bottom:28px; border-bottom-color:rgba(255,60,60,0.1);">
+    <div class="p2-badge" style="background:rgba(255,60,60,0.07);border-color:rgba(255,60,60,0.25);color:var(--red);">◈ LEVEL 05 // CRITICAL ROUTE RECOVERY</div>
+    <div class="p2-title glitch" data-text="CRITICAL ROUTE RECOVERY" style="color:var(--red);text-shadow:0 0 40px rgba(255,60,60,0.25);">CRITICAL ROUTE RECOVERY</div>
+    <div class="p2-sub" style="color:rgba(255,60,60,0.35);">EMERGENCY ROUTING PROTOCOL // DIJKSTRA ALGORITHM</div>
+  </div>
+
+  <div class="alert" style="border-left-color:var(--red);border-color:rgba(255,60,60,0.2);background:rgba(255,60,60,0.04);margin-bottom:28px;">
+    <span class="alert-tag" style="color:var(--red);">⚠ PRIORITY CONTROL PACKET DETECTED</span>
+    <p style="color:rgba(255,150,150,0.7);">The smart city's communication infrastructure has finally been restored, but the system remains unstable. Immediate transmission required across the smart-grid network. Determine the minimum-cost route before communication failure spreads further.</p>
+  </div>
+
+  <div class="sec-hdr">
+    <div class="sec-label" style="color:rgba(255,60,60,0.35);">DISTANCE MATRIX (Z1 - Z7)</div>
+    <div class="sec-line" style="background:rgba(255,60,60,0.1)"></div>
+  </div>
+
+  <div class="matrix-wrap" style="margin-bottom:24px;">
+    <table class="dep-mat" id="l5Table" style="--mat-link-bg:rgba(255,60,60,0.08);--mat-link-col:var(--red);">
+      <thead>
+        <tr>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);"></th>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);">Z1</th>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);">Z2</th>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);">Z3</th>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);">Z4</th>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);">Z5</th>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);">Z6</th>
+          <th style="color:rgba(255,60,60,0.5);border-color:rgba(255,60,60,0.1);background:rgba(255,60,60,0.05);">Z7</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="color:var(--red);font-weight:bold;">Z1</td><td>0</td><td>6</td><td>9</td><td style="color:rgba(255,255,255,0.2);">∞</td><td>3</td><td style="color:rgba(255,255,255,0.2);">∞</td><td>4</td></tr>
+        <tr><td style="color:var(--red);font-weight:bold;">Z2</td><td>6</td><td>0</td><td>5</td><td>8</td><td>2</td><td style="color:rgba(255,255,255,0.2);">∞</td><td style="color:rgba(255,255,255,0.2);">∞</td></tr>
+        <tr><td style="color:var(--red);font-weight:bold;">Z3</td><td>9</td><td>5</td><td>0</td><td>4</td><td>7</td><td>12</td><td style="color:rgba(255,255,255,0.2);">∞</td></tr>
+        <tr><td style="color:var(--red);font-weight:bold;">Z4</td><td style="color:rgba(255,255,255,0.2);">∞</td><td>8</td><td>4</td><td>0</td><td>6</td><td>9</td><td>10</td></tr>
+        <tr><td style="color:var(--red);font-weight:bold;">Z5</td><td>3</td><td>2</td><td>7</td><td>6</td><td>0</td><td>11</td><td>8</td></tr>
+        <tr><td style="color:var(--red);font-weight:bold;">Z6</td><td style="color:rgba(255,255,255,0.2);">∞</td><td style="color:rgba(255,255,255,0.2);">∞</td><td>12</td><td>9</td><td>11</td><td>0</td><td>3</td></tr>
+        <tr><td style="color:var(--red);font-weight:bold;">Z7</td><td>4</td><td style="color:rgba(255,255,255,0.2);">∞</td><td style="color:rgba(255,255,255,0.2);">∞</td><td>10</td><td>8</td><td>3</td><td>0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tasks" style="margin-bottom:24px;">
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,60,60,0.25);color:rgba(255,60,60,0.5);">01</div>
+      <div class="t-text" style="color:rgba(255,200,200,0.75);">Determine shortest route from <strong>Source Node Z2</strong> to <strong>Destination Node Z6</strong>.</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,60,60,0.25);color:rgba(255,60,60,0.5);">02</div>
+      <div class="t-text" style="color:rgba(255,200,200,0.75);">Compute minimum transmission cost.</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,60,60,0.25);color:rgba(255,60,60,0.5);">03</div>
+      <div class="t-text" style="color:rgba(255,200,200,0.75);"><strong>Clue:</strong> Begin from a single source. At each iteration, permanently finalize the nearest unresolved node and update route estimates for all connected neighbors.</div>
+    </div>
+    <div class="task-row">
+      <div class="t-num" style="border-color:rgba(255,60,60,0.25);color:rgba(255,60,60,0.5);">04</div>
+      <div class="t-text" style="color:rgba(255,200,200,0.75);"><strong>Final Code:</strong> Concatenate the numerical identifiers of the nodes along the shortest valid route in traversal order.</div>
+    </div>
+  </div>
+
+  <div class="sec-hdr" style="margin-top:8px;">
+    <div class="sec-label" style="color:rgba(255,60,60,0.5);">LIVE VISUALIZATION — NETWORK GRAPH</div>
+    <div class="sec-line" style="background:rgba(255,60,60,0.1)"></div>
+  </div>
+
+  <div class="visualizer-container" style="border-color:rgba(255,60,60,0.2); background:rgba(20,5,5,0.4); text-align:center;">
+    <canvas id="viz5" width="800" height="400" style="width:100%; max-width:800px; height:auto; display:block; margin:0 auto;"></canvas>
+    <div style="margin-top:20px;">
+      <button class="run-viz-btn" style="border-color:var(--red); color:var(--red); background:rgba(255,60,60,0.05);" onclick="runViz5()">[ EXECUTE ROUTING PROTOCOL ]</button>
+    </div>
+  </div>
+
+  <div class="inv-box" style="border-color:rgba(255,60,60,0.3); background:rgba(255,60,60,0.05); text-align:center; padding:32px 20px; margin-top:24px;">
+    <div style="font-family:'Orbitron',monospace; font-size:14px; color:var(--red); letter-spacing:2px; margin-bottom:16px;">ENTER FINAL UNLOCK CODE</div>
+    <input type="text" id="unlockCodeInput5" placeholder="XXXXX" style="background:rgba(0,0,0,0.6); border:1px solid rgba(255,60,60,0.5); color:var(--red); font-family:'Orbitron',monospace; font-size:24px; text-align:center; padding:12px; width:200px; border-radius:2px; outline:none; text-transform:uppercase;">
+    <button class="run-viz-btn" style="border-color:var(--red); color:var(--bg); background:var(--red); margin-left:12px; font-weight:bold;" onclick="verifyL5Code()">[ VERIFY ]</button>
+    <div id="verifyResult5" style="margin-top:16px; font-family:'Share Tech Mono',monospace; font-size:14px; letter-spacing:2px; height:20px;"></div>
+  </div>
+
+  <div class="footer-nav" style="margin-top:32px;">
+    <button class="back-btn" onclick="navigate('page4','page5')" style="border-color:rgba(255,60,60,0.3);color:var(--red);">← BACK TO LEVEL 4</button>
+    <div style="font-size:10px;color:rgba(255,60,60,0.25);letter-spacing:2px;font-family:'Orbitron',monospace;">LEVEL 05 // CRITICAL_ROUTE_v1</div>
+  </div>
+
+</div>
+</div>
+
+<style>
+  /* ── Page 2 overrides ── */
+  .p2-header { text-align:center; padding:52px 0 36px; border-bottom:1px solid rgba(0,212,255,0.1); margin-bottom:36px; animation:fadeUp 0.7s ease both; }
+  .p2-badge { display:inline-block; background:rgba(0,212,255,0.07); border:1px solid rgba(0,212,255,0.25); color:var(--cyan); font-size:9px; letter-spacing:5px; padding:5px 18px; border-radius:2px; margin-bottom:18px; }
+  .p2-title { font-family:'Orbitron',monospace; font-size:clamp(20px,3.5vw,34px); font-weight:900; color:var(--cyan); letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; text-shadow:0 0 40px rgba(0,212,255,0.25); }
+  .p2-sub { font-size:10px; color:rgba(0,212,255,0.35); letter-spacing:3px; }
+
+  .sorted-chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .s-chip { background:rgba(0,212,255,0.05); border:1px solid rgba(0,212,255,0.18); border-radius:2px; padding:6px 11px; text-align:center; cursor:default; transition:background 0.2s,border-color 0.2s; }
+  .s-chip:hover { background:rgba(0,212,255,0.1); border-color:rgba(0,212,255,0.4); }
+  .chip-rank { font-size:8px; letter-spacing:1px; color:rgba(0,212,255,0.35); display:block; margin-bottom:2px; }
+  .chip-id { font-family:'Orbitron',monospace; font-size:12px; color:var(--cyan); display:block; }
+  .chip-val { font-size:9px; color:rgba(0,212,255,0.45); display:block; margin-top:2px; }
+
+  .matrix-intro { font-size:12px; color:rgba(0,212,255,0.6); line-height:1.9; font-family:'Exo 2',sans-serif; font-weight:300; margin-bottom:16px; animation:fadeUp 0.7s ease 0.25s both; }
+  .matrix-intro strong { color:var(--cyan); font-family:'Share Tech Mono',monospace; font-weight:400; }
+  .matrix-wrap { overflow-x:auto; margin-bottom:28px; animation:fadeUp 0.7s ease 0.3s both; }
+
+  table.dep-mat { border-collapse:collapse; font-size:10px; min-width:100%; }
+  .dep-mat th { font-size:8px; letter-spacing:2px; color:rgba(0,212,255,0.4); padding:7px 9px; border:1px solid rgba(0,212,255,0.08); background:rgba(0,212,255,0.03); font-family:'Orbitron',monospace; white-space:nowrap; }
+  .dep-mat td { padding:7px 9px; border:1px solid rgba(0,212,255,0.06); color:rgba(0,212,255,0.5); text-align:center; transition:background 0.15s; font-size:11px; }
+  .dep-mat td.diag { color:rgba(0,212,255,0.15); }
+  .dep-mat td.linked { background:rgba(0,212,255,0.07); color:var(--cyan); font-weight:600; }
+  .dep-mat tr:hover td { background:rgba(0,212,255,0.04); }
+  .dep-mat tr:hover td.linked { background:rgba(0,212,255,0.13); }
+
+  .r2-task-box { position:relative; border:1px solid rgba(0,212,255,0.18); background:rgba(0,212,255,0.03); padding:22px 20px; border-radius:2px; margin-bottom:32px; animation:fadeUp 0.7s ease 0.4s both; }
+  .r2-task-box::before { content:'LEVEL 2 OBJECTIVES'; position:absolute; top:-9px; left:16px; background:var(--bg); padding:0 8px; font-size:9px; letter-spacing:3px; color:var(--cyan); }
+  .r2-list { list-style:none; }
+  .r2-list li { display:flex; gap:12px; align-items:flex-start; font-size:12px; color:rgba(0,212,255,0.7); font-family:'Exo 2',sans-serif; font-weight:300; padding:9px 0; border-bottom:1px solid rgba(0,212,255,0.05); line-height:1.7; }
+  .r2-list li::before { content:'▸'; color:var(--cyan); flex-shrink:0; margin-top:1px; }
+
+  .back-btn { display:inline-flex; align-items:center; gap:10px; background:transparent; border:1px solid rgba(0,212,255,0.3); color:var(--cyan); font-family:'Orbitron',monospace; font-size:10px; letter-spacing:3px; padding:12px 22px; cursor:pointer; border-radius:2px; transition:all 0.22s; }
+  .back-btn:hover { border-color:var(--cyan); background:rgba(0,212,255,0.06); }
+
+  /* topo flow */
+  .topo-flow { display:flex; flex-wrap:wrap; align-items:center; gap:0; margin-bottom:16px; animation:fadeUp 0.7s ease 0.35s both; }
+  .topo-node { display:flex; flex-direction:column; align-items:center; }
+  .topo-id { font-family:'Orbitron',monospace; font-size:12px; color:var(--cyan); background:rgba(0,212,255,0.07); border:1px solid rgba(0,212,255,0.25); border-radius:2px; padding:8px 12px; white-space:nowrap; }
+  .topo-step { font-size:8px; color:rgba(0,212,255,0.35); letter-spacing:1px; margin-top:4px; }
+  .topo-arrow { color:rgba(0,212,255,0.3); font-size:18px; padding:0 4px; line-height:1; margin-bottom:16px; }
+
+  /* stat cards */
+  .stat-card { background:rgba(255,136,255,0.04); border:1px solid rgba(255,136,255,0.15); border-radius:2px; padding:14px 12px; text-align:center; }
+  .stat-val { font-family:'Orbitron',monospace; font-size:22px; font-weight:900; color:#ff88ff; margin-bottom:4px; }
+  .stat-label { font-size:8px; letter-spacing:2px; color:rgba(255,136,255,0.4); }
+
+  /* weighted matrix pink override */
+  #weightedMatrix th { color:rgba(255,136,255,0.4) !important; border-color:rgba(255,136,255,0.08) !important; background:rgba(255,136,255,0.03) !important; }
+  #weightedMatrix td { border-color:rgba(255,136,255,0.06) !important; color:rgba(255,136,255,0.5) !important; }
+  #weightedMatrix td.diag { color:rgba(255,136,255,0.15) !important; }
+  #weightedMatrix td.linked { background:rgba(255,136,255,0.08) !important; color:#ff88ff !important; }
+  #weightedMatrix tr:hover td { background:rgba(255,136,255,0.04) !important; }
+</style>
+
+<script>
+  // ─── DATA ───
+  const stations = ['QA','FM','BT','HX','DP','AK','RC','LM','ZF','KN','PE','CU','SJ','VG'];
+  const ascii = c => c.charCodeAt(0);
+  const sigVal = s => ascii(s[0]) + ascii(s[1]);
+  const data = stations.map((id,i) => ({ id, v: sigVal(id), idx: i }));
+  const sorted = [...data].sort((a,b) => a.v !== b.v ? a.v - b.v : a.idx - b.idx);
+  const rankOf = {};
+  sorted.forEach((s,i) => rankOf[s.id] = i+1);
+
+  // ─── EXACT DEPENDENCY MATRIX from image ───
+  // The matrix corresponds strictly to this layout, regardless of sorting
+  const matLabels = ['AK','QA','FM','DP','RC','PE','BT','CU','LM','KN','SJ','VG','HX','ZF'];
+  const matRaw = [
+    [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0], 
+    [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0], 
+    [0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0], 
+    [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 
+    [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0], 
+    [0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0], 
+    [0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0], 
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0], 
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0], 
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0], // KN fixed
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1], // SJ fixed
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], // VG fixed
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // HX fixed
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // ZF fixed
+  ];
+
+  // ─── CLOCK ───
+  function tick() {
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      [d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+  }
+  tick(); setInterval(tick, 1000);
+
+  // ─── PARTICLES ───
+  const pContainer = document.getElementById('particles');
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random()*100+'%';
+    p.style.setProperty('--dur',(3+Math.random()*5)+'s');
+    p.style.setProperty('--delay',(Math.random()*6)+'s');
+    pContainer.appendChild(p);
+  }
+
+  // ─── BUILD STATION CARDS ───
+  const gridEl = document.getElementById('stationsGrid');
+  data.forEach(s => {
+    const c = document.createElement('div');
+    c.className = 's-card';
+    c.innerHTML = `<div class="s-id">${s.id}</div><div class="s-tag">SIG VAL</div><div class="s-val">${s.v}</div>`;
+    c.addEventListener('mouseenter', ()=>c.classList.add('highlight'));
+    c.addEventListener('mouseleave', ()=>c.classList.remove('highlight'));
+    gridEl.appendChild(c);
+  });
+
+  // ─── BUILD DECODE TABLE ───
+  const tbody = document.getElementById('decodeBody');
+  data.forEach(s => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.id}</td><td>${s.id[0]}</td><td>${ascii(s.id[0])}</td><td>${s.id[1]}</td><td>${ascii(s.id[1])}</td><td class="cv">${s.v}</td><td class="rv">#${rankOf[s.id]}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // ─── TOGGLE DECODE ───
+  let decodeOpen = false;
+  function toggleDecode() {
+    decodeOpen = !decodeOpen;
+    document.getElementById('decodeWrap').classList.toggle('open', decodeOpen);
+    document.getElementById('toggleBtn').textContent = decodeOpen ? '[ HIDE SIGNAL VALUES ▴ ]' : '[ DECODE SIGNAL VALUES ▾ ]';
+  }
+
+  // ─── TOPOLOGICAL SORT (Sink Removal / Reverse Source Removal) ───
+  function topoSort(labels, matrix) {
+    const n = labels.length;
+    // outDeg[j] = number of nodes that depend on j (column sum)
+    const outDeg = Array(n).fill(0);
+    const removed = Array(n).fill(false);
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++)
+        if (matrix[i][j] === 1) outDeg[j]++;
+
+    const order = [];
+    for (let step = 0; step < n; step++) {
+      // Find all non-removed nodes with out-degree 0 (nothing depends on them)
+      const sinks = [];
+      for (let i = 0; i < n; i++)
+        if (!removed[i] && outDeg[i] === 0) sinks.push(i);
+      // Alphabetical tie-breaking
+      sinks.sort((a, b) => labels[a].localeCompare(labels[b]));
+      const u = sinks[0];
+      removed[u] = true;
+      order.push(labels[u]);
+      // u depended on some nodes j (matrix[u][j] == 1). Remove those edges => reduce outDeg[j].
+      for (let j = 0; j < n; j++) {
+        if (matrix[u][j] === 1) outDeg[j]--;
+      }
+    }
+    return order;
+  }
+
+  const topoOrder = topoSort(matLabels, matRaw);
+
+  // ─── BUILD LEVEL 2 ───
+  let builtL2 = false;
+  function buildLevel2() {
+    if (builtL2) return; builtL2 = true;
+
+    // Build dependency matrix table
+    const mat = document.getElementById('depMatrix2');
+    const n = matLabels.length;
+    let html = '<thead><tr><th>↓ DEPENDS ON →</th>';
+    matLabels.forEach(l => html += `<th>${l}</th>`);
+    html += '</tr></thead><tbody>';
+    for (let i = 0; i < n; i++) {
+      html += `<tr><th>${matLabels[i]}</th>`;
+      for (let j = 0; j < n; j++) {
+        if (i === j) { html += '<td class="diag">—</td>'; continue; }
+        const v = matRaw[i][j];
+        html += `<td class="${v ? 'linked' : ''}">${v ? '1' : '·'}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody>';
+    mat.innerHTML = html;
+
+    // Topo flow
+    const flowEl = document.getElementById('topoFlow');
+    topoOrder.forEach((id, i) => {
+      const node = document.createElement('div');
+      node.className = 'topo-node';
+      node.innerHTML = `<div class="topo-id">${id}</div><div class="topo-step">STEP ${String(i+1).padStart(2,'0')}</div>`;
+      flowEl.appendChild(node);
+      if (i < topoOrder.length - 1) {
+        const arr = document.createElement('div');
+        arr.className = 'topo-arrow';
+        arr.textContent = '→';
+        flowEl.appendChild(arr);
+      }
+    });
+  }
+
+  // ─── BUILD LEVEL 3 ───
+  let builtL3 = false;
+  // Exact weighted connectivity matrix from the problem image
+  // Rows/Cols: AK, QA, FM, DP, RC, PE, BT, CU, LM, KN, SJ, VG, HX, ZF
+  const l3WeightMatrix = [
+    [ 0,  3,  9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1], // AK
+    [ 3,  0,  4, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1], // QA
+    [ 9,  4,  0,  2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1], // FM
+    [-1, 10,  2,  0,  5, -1, -1, -1, -1, -1, -1, -1, -1, -1], // DP
+    [-1, -1, -1,  5,  0,  6, 11, -1, -1, -1, -1, -1, -1, -1], // RC
+    [-1, -1, -1, -1,  6,  0,  3, -1, -1, -1, -1, -1, -1, -1], // PE
+    [-1, -1, -1, -1, 11,  3,  0,  4, -1, -1, -1, -1, -1, -1], // BT
+    [-1, -1, -1, -1, -1, -1,  4,  0,  2, -1, -1, -1, -1, -1], // CU
+    [-1, -1, -1, -1, -1, -1, -1,  2,  0,  5,  8, -1, -1, -1], // LM
+    [-1, -1, -1, -1, -1, -1, -1, -1,  5,  0,  3, -1, -1, -1], // KN
+    [-1, -1, -1, -1, -1, -1, -1, -1,  8,  3,  0,  4, -1, -1], // SJ
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  4,  0,  2, -1], // VG
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  2,  0,  7], // HX
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  7,  0], // ZF
+  ];
+
+  function buildLevel3() {
+    if (builtL3) return; builtL3 = true;
+
+    // L3 chips using topo order
+    const chipsEl = document.getElementById('l3Chips');
+    topoOrder.forEach((id, i) => {
+      const chip = document.createElement('div');
+      chip.className = 's-chip';
+      chip.style.cssText = 'background:rgba(255,136,255,0.05);border-color:rgba(255,136,255,0.18);';
+      const v = sigVal(id);
+      chip.innerHTML = `<span class="chip-rank" style="color:rgba(255,136,255,0.35);">STEP ${i+1}</span><span class="chip-id" style="color:#ff88ff;">${id}</span><span class="chip-val" style="color:rgba(255,136,255,0.45);">${v}</span>`;
+      chipsEl.appendChild(chip);
+    });
+
+    // Build weighted connectivity matrix display using matLabels order
+    const n = matLabels.length;
+    const mat = document.getElementById('weightedMatrix');
+    let html = '<thead><tr><th>↕ COST</th>';
+    matLabels.forEach(l => html += `<th>${l}</th>`);
+    html += '</tr></thead><tbody>';
+
+    let totalEdges = 0, totalWeight = 0, maxW = 0, minW = Infinity;
+
+    for (let i = 0; i < n; i++) {
+      html += `<tr><th>${matLabels[i]}</th>`;
+      for (let j = 0; j < n; j++) {
+        if (i === j) { html += '<td class="diag">0</td>'; continue; }
+        const w = l3WeightMatrix[i][j];
+        if (w > 0) {
+          if (i < j) { totalEdges++; totalWeight += w; maxW = Math.max(maxW, w); minW = Math.min(minW, w); }
+          html += `<td class="linked">${w}</td>`;
+        } else {
+          html += `<td style="color:rgba(255,255,255,0.15);">-1</td>`;
+        }
+      }
+      html += '</tr>';
+    }
+    html += '</tbody>';
+    mat.innerHTML = html;
+
+    // Stats
+    const statsEl = document.getElementById('networkStats');
+    const stats = [
+      { val: n, label: 'TOTAL NODES' },
+      { val: totalEdges, label: 'EDGE COUNT' },
+      { val: totalWeight, label: 'TOTAL WEIGHT' },
+      { val: minW === Infinity ? 0 : minW, label: 'MIN EDGE WT' },
+    ];
+    stats.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+      card.innerHTML = `<div class="stat-val">${s.val}</div><div class="stat-label">${s.label}</div>`;
+      statsEl.appendChild(card);
+    });
+  }
+
+  // ─── VISUALIZER ENGINE ───
+  function lerp(start, end, t) { return start + (end - start) * t; }
+  function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+  // LEVEL 1: Selection Sort Visualization
+  let v1Running = false;
+  async function runViz1() {
+    if (v1Running) return; v1Running = true;
+    const canvas = document.getElementById('viz1');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    
+    let nodes = data.map((d, i) => ({
+      id: d.id, v: d.v, 
+      x: 40 + i * ((w - 80) / 13), y: h/2,
+      targetX: 40 + i * ((w - 80) / 13),
+      color: '#00ff88'
+    }));
+    
+    let draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.font = '12px Orbitron';
+      ctx.textAlign = 'center';
+      nodes.forEach(n => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 18, 0, Math.PI*2);
+        ctx.strokeStyle = n.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(0,255,136,0.1)';
+        ctx.fill();
+        ctx.fillStyle = n.color;
+        ctx.fillText(n.id, n.x, n.y + 4);
+        ctx.font = '9px Share Tech Mono';
+        ctx.fillText(n.v, n.x, n.y + 32);
+        ctx.font = '12px Orbitron';
+      });
+    };
+    
+    let animFrame;
+    function loop() {
+      nodes.forEach(n => {
+        if (Math.abs(n.x - n.targetX) > 0.5) n.x = lerp(n.x, n.targetX, 0.15);
+      });
+      draw();
+      animFrame = requestAnimationFrame(loop);
+    }
+    loop();
+    
+    let arr = [...nodes];
+    for (let i = 0; i < arr.length; i++) {
+      let minIdx = i;
+      arr[minIdx].color = '#ffaa00';
+      for (let j = i + 1; j < arr.length; j++) {
+        arr[j].color = '#ffaa00';
+        await sleep(50);
+        if (arr[j].v < arr[minIdx].v) {
+          if (minIdx !== i) arr[minIdx].color = '#00ff88';
+          minIdx = j;
+          arr[minIdx].color = '#ff3c3c';
+        } else {
+          arr[j].color = '#00ff88';
+        }
+      }
+      if (minIdx !== i) {
+        let minNode = arr[minIdx];
+        
+        // Stable Selection Sort: shift elements right instead of swapping
+        for (let k = minIdx; k > i; k--) {
+          arr[k] = arr[k-1];
+        }
+        arr[i] = minNode;
+        
+        // Update targetX for all affected elements
+        for (let k = i; k <= minIdx; k++) {
+          arr[k].targetX = 40 + k * ((w - 80) / 13);
+        }
+        
+        await sleep(300);
+      }
+      arr[i].color = '#00d4ff';
+      if (minIdx !== i) arr[minIdx].color = '#00ff88';
+    }
+    
+    setTimeout(() => { cancelAnimationFrame(animFrame); draw(); v1Running = false; }, 1000);
+  }
+
+  // Precompute layout for L2 & L3 graphs
+  const l2GraphNodes = {};
+  matLabels.forEach((id, i) => {
+     let xLayer = topoOrder.indexOf(id);
+     let yOffset = (i % 3 === 0 ? 0 : (i % 3 === 1 ? -70 : 70));
+     l2GraphNodes[id] = {
+       id, x: 70 + xLayer * 60, y: 170 + yOffset,
+       color: 'rgba(0,212,255,0.4)', stroke: 'rgba(0,212,255,0.6)', active: false, resolved: false
+     };
+  });
+
+  // LEVEL 2: Topological Sort Visualization
+  let v2Running = false;
+  async function runViz2() {
+    if (v2Running) return; v2Running = true;
+    const canvas = document.getElementById('viz2');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    
+    const nodes = JSON.parse(JSON.stringify(l2GraphNodes));
+    let edges = [];
+    for(let i=0; i<matLabels.length; i++) {
+      for(let j=0; j<matLabels.length; j++) {
+        if(matRaw[i][j]) {
+          edges.push({ from: matLabels[j], to: matLabels[i], active: true }); 
+        }
+      }
+    }
+    
+    let draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      
+      edges.forEach(e => {
+        if (!e.active) return;
+        let p1 = nodes[e.from], p2 = nodes[e.to];
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = p1.resolved ? 'rgba(0,212,255,0.1)' : 'rgba(0,212,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        let dx = p2.x - p1.x, dy = p2.y - p1.y;
+        let angle = Math.atan2(dy, dx);
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        let ax = p1.x + Math.cos(angle) * (dist - 16);
+        let ay = p1.y + Math.sin(angle) * (dist - 16);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax - 6 * Math.cos(angle - Math.PI/6), ay - 6 * Math.sin(angle - Math.PI/6));
+        ctx.lineTo(ax - 6 * Math.cos(angle + Math.PI/6), ay - 6 * Math.sin(angle + Math.PI/6));
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+      });
+      
+      Object.values(nodes).forEach(n => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 15, 0, Math.PI*2);
+        ctx.fillStyle = n.resolved ? 'rgba(0,212,255,0.2)' : n.color;
+        ctx.fill();
+        ctx.strokeStyle = n.resolved ? '#00d4ff' : n.stroke;
+        if(n.active) { ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3; }
+        else { ctx.lineWidth = 2; }
+        ctx.stroke();
+        ctx.fillStyle = n.resolved ? '#00d4ff' : '#ccc';
+        if(n.active) ctx.fillStyle = '#ffaa00';
+        ctx.font = '10px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.fillText(n.id, n.x, n.y + 4);
+      });
+    };
+    
+    let inDeg = {};
+    matLabels.forEach(id => inDeg[id] = 0);
+    edges.forEach(e => inDeg[e.to]++);
+    
+    let animFrame = setInterval(draw, 50);
+    
+    let queue = [];
+    matLabels.forEach(id => { if(inDeg[id] === 0) queue.push(id); });
+    
+    while(queue.length > 0) {
+      queue.sort((a,b) => a.localeCompare(b));
+      let u = queue.shift();
+      
+      nodes[u].active = true;
+      draw();
+      await sleep(400);
+      nodes[u].active = false;
+      nodes[u].resolved = true;
+      
+      edges.forEach(e => {
+        if(e.from === u && e.active) {
+          e.active = false;
+          inDeg[e.to]--;
+          if(inDeg[e.to] === 0) queue.push(e.to);
+        }
+      });
+      draw();
+      await sleep(200);
+    }
+    
+    clearInterval(animFrame);
+    draw();
+    v2Running = false;
+  }
+
+  // LEVEL 3: Kruskal's MST Visualization
+  let v3Running = false;
+  async function runViz3() {
+    if (v3Running) return; v3Running = true;
+    const canvas = document.getElementById('viz3');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    
+    const nodes = JSON.parse(JSON.stringify(l2GraphNodes));
+    
+    let edges = [];
+    const n = matLabels.length;
+    for(let i=0; i<n; i++) {
+      for(let j=i+1; j<n; j++) {
+        if(l3WeightMatrix[i][j] > 0) {
+          edges.push({ u: matLabels[i], v: matLabels[j], w: l3WeightMatrix[i][j], state: 'idle' });
+        }
+      }
+    }
+    edges.sort((a,b) => a.w - b.w);
+    
+    let draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      
+      edges.forEach(e => {
+        let p1 = nodes[e.u], p2 = nodes[e.v];
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        if(e.state === 'idle') { ctx.strokeStyle = 'rgba(255,136,255,0.1)'; ctx.lineWidth = 1; }
+        else if(e.state === 'testing') { ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 2; }
+        else if(e.state === 'mst') { ctx.strokeStyle = '#ff88ff'; ctx.lineWidth = 3; }
+        else if(e.state === 'rejected') { ctx.strokeStyle = 'rgba(255,60,60,0.2)'; ctx.lineWidth = 1; }
+        ctx.stroke();
+        
+        if(e.state === 'mst' || e.state === 'testing') {
+          let mx = (p1.x + p2.x)/2, my = (p1.y + p2.y)/2;
+          ctx.fillStyle = e.state === 'testing' ? '#ffaa00' : '#ff88ff';
+          ctx.font = '11px Share Tech Mono';
+          ctx.fillText(e.w, mx, my - 4);
+        }
+      });
+      
+      Object.values(nodes).forEach(n => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 15, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,136,255,0.1)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,136,255,0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#ff88ff';
+        ctx.font = '10px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.fillText(n.id, n.x, n.y + 4);
+      });
+    };
+    
+    let animFrame = setInterval(draw, 50);
+    
+    let parent = {};
+    matLabels.forEach(id => parent[id] = id);
+    function find(i) { if(parent[i] === i) return i; return parent[i] = find(parent[i]); }
+    function union(i, j) { let rootI = find(i), rootJ = find(j); if(rootI !== rootJ) { parent[rootI] = rootJ; return true; } return false; }
+    
+    for(let e of edges) {
+      e.state = 'testing';
+      draw();
+      await sleep(300);
+      if(union(e.u, e.v)) {
+        e.state = 'mst';
+      } else {
+        e.state = 'rejected';
+      }
+      draw();
+      await sleep(100);
+    }
+    
+    clearInterval(animFrame);
+    draw();
+    v3Running = false;
+  }
+
+  // LEVEL 3: Verify unlock code (MST total = 50, binary = 110010)
+  function verifyL3Code() {
+    const val = document.getElementById('unlockCodeInput3').value.trim();
+    const res = document.getElementById('verifyResult3');
+    if (val === '110010') {
+      res.style.color = 'var(--green)';
+      res.textContent = 'ACCESS GRANTED: BACKBONE RESTORED';
+    } else {
+      res.style.color = 'var(--red)';
+      res.textContent = 'ACCESS DENIED: INVALID BINARY CODE';
+    }
+  }
+
+  // ─── INITIALIZATION VISUALIZER DRAW ───
+  setTimeout(() => {
+    // Initial static draw for Level 1
+    const ctx1 = document.getElementById('viz1').getContext('2d');
+    ctx1.font = '12px Orbitron'; ctx1.textAlign = 'center';
+    data.forEach((d, i) => {
+      let x = 40 + i * ((912 - 80) / 13), y = 75;
+      ctx1.beginPath(); ctx1.arc(x, y, 18, 0, Math.PI*2);
+      ctx1.strokeStyle = '#00ff88'; ctx1.lineWidth = 2; ctx1.stroke();
+      ctx1.fillStyle = 'rgba(0,255,136,0.1)'; ctx1.fill();
+      ctx1.fillStyle = '#00ff88'; ctx1.fillText(d.id, x, y + 4);
+      ctx1.font = '9px Share Tech Mono'; ctx1.fillText(d.v, x, y + 32); ctx1.font = '12px Orbitron';
+    });
+  }, 500);
+
+  // ─── NAVIGATION ───
+  function navigate(showId, hideId) {
+    document.getElementById(hideId).classList.remove('active');
+    const target = document.getElementById(showId);
+    target.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (showId === 'page2') {
+      buildLevel2();
+      // initial static draw
+      setTimeout(() => {
+        const c2 = document.getElementById('viz2'); if(!c2) return;
+        const ctx2 = c2.getContext('2d');
+        Object.values(l2GraphNodes).forEach(n => {
+          ctx2.beginPath(); ctx2.arc(n.x, n.y, 15, 0, Math.PI*2);
+          ctx2.fillStyle='rgba(0,212,255,0.1)'; ctx2.fill();
+          ctx2.strokeStyle='rgba(0,212,255,0.6)'; ctx2.lineWidth=2; ctx2.stroke();
+          ctx2.fillStyle='#ccc'; ctx2.font='10px Orbitron'; ctx2.textAlign='center'; ctx2.fillText(n.id, n.x, n.y+4);
+        });
+      }, 200);
+    }
+    if (showId === 'page3') { 
+      buildLevel2(); buildLevel3(); 
+      // initial static draw
+      setTimeout(() => {
+        const c3 = document.getElementById('viz3'); if(!c3) return;
+        const ctx3 = c3.getContext('2d');
+        Object.values(l2GraphNodes).forEach(n => {
+          ctx3.beginPath(); ctx3.arc(n.x, n.y, 15, 0, Math.PI*2);
+          ctx3.fillStyle='rgba(255,136,255,0.1)'; ctx3.fill();
+          ctx3.strokeStyle='rgba(255,136,255,0.5)'; ctx3.lineWidth=2; ctx3.stroke();
+          ctx3.fillStyle='#ff88ff'; ctx3.font='10px Orbitron'; ctx3.textAlign='center'; ctx3.fillText(n.id, n.x, n.y+4);
+        });
+      }, 200);
+    }
+  }
+
+  function goToLevel2() { navigate('page2','page1'); }
+  function goBack()     { navigate('page1','page2'); }
+
+  // ─── LEVEL 4 LOGIC ───
+  const l4Zones = {
+    'A': { cost: 6, ben: 12 },
+    'B': { cost: 8, ben: 14 },
+    'C': { cost: 5, ben: 9 },
+    'D': { cost: 7, ben: 13 },
+    'E': { cost: 4, ben: 8 },
+    'F': { cost: 3, ben: 0 }
+  };
+  let l4Selected = [];
+
+  function renderL4() {
+    let eTotal = 0;
+    let bTotal = 0;
+    
+    // Evaluate dynamically
+    let hasE = l4Selected.includes('E');
+    l4Selected.forEach((z, i) => {
+      let c = l4Zones[z].cost;
+      let b = l4Zones[z].ben;
+      
+      if (z === 'B' && l4Selected.indexOf('A') !== -1 && l4Selected.indexOf('A') < i) {
+        c = 5;
+      }
+      if (z === 'C') {
+        if (l4Selected.indexOf('D') !== -1 && l4Selected.indexOf('D') < i) {
+          b += 4;
+        }
+        if (hasE) {
+          c -= 1;
+        }
+      }
+      eTotal += c;
+      bTotal += b;
+    });
+
+    // Update Gauges
+    const eBar = document.getElementById('energyBar');
+    const eText = document.getElementById('energyText');
+    const bBar = document.getElementById('benefitBar');
+    const bText = document.getElementById('benefitText');
+    
+    let ePct = (eTotal / 20) * 100;
+    if(ePct > 100) ePct = 100;
+    eBar.style.width = ePct + '%';
+    
+    if (eTotal > 20) {
+      eBar.style.background = 'var(--red)';
+      eText.style.color = 'var(--red)';
+      eText.textContent = eTotal + ' / 20 kWh [ OVERLOAD ]';
+    } else {
+      eBar.style.background = 'var(--amber)';
+      eText.style.color = 'var(--amber)';
+      eText.textContent = eTotal + ' / 20 kWh';
+    }
+    
+    let bPct = (bTotal / 50) * 100; // max possible is around 43
+    if(bPct > 100) bPct = 100;
+    bBar.style.width = bPct + '%';
+    bText.textContent = bTotal;
+    
+    document.getElementById('l4Sequence').textContent = l4Selected.length ? l4Selected.join(' → ') : 'NONE';
+    
+    // Render Buttons
+    const btnContainer = document.getElementById('zoneButtons');
+    btnContainer.innerHTML = '';
+    ['A','B','C','D','E','F'].forEach(z => {
+      const btn = document.createElement('button');
+      const isSel = l4Selected.includes(z);
+      btn.textContent = 'ZONE ' + z;
+      btn.style.cssText = `
+        padding: 12px 24px; font-family:'Orbitron',monospace; font-size:14px; font-weight:bold;
+        border: 1px solid ${isSel ? 'var(--amber)' : 'rgba(255,170,0,0.3)'};
+        background: ${isSel ? 'rgba(255,170,0,0.2)' : 'transparent'};
+        color: ${isSel ? 'var(--amber)' : 'rgba(255,170,0,0.6)'};
+        border-radius: 2px; cursor: pointer; transition: all 0.2s;
+      `;
+      btn.onclick = () => toggleL4Zone(z);
+      btnContainer.appendChild(btn);
+    });
+  }
+
+  function toggleL4Zone(z) {
+    if (l4Selected.includes(z)) {
+      l4Selected = l4Selected.filter(x => x !== z);
+    } else {
+      l4Selected.push(z);
+    }
+    renderL4();
+  }
+
+  function resetL4() {
+    l4Selected = [];
+    renderL4();
+  }
+
+  async function autoSolveL4() {
+    resetL4();
+    const optimal = ['A', 'B', 'E', 'C']; // Pre-calculated optimal path
+    for (let z of optimal) {
+      await sleep(400);
+      toggleL4Zone(z);
+    }
+  }
+
+  function verifyL4Code() {
+    const val = document.getElementById('unlockCodeInput').value.trim().toUpperCase();
+    const res = document.getElementById('verifyResult');
+    if (val === '92GRID') {
+      res.style.color = 'var(--green)';
+      res.textContent = 'ACCESS GRANTED: RECOVERY COMPLETE';
+    } else {
+      res.style.color = 'var(--red)';
+      res.textContent = 'ACCESS DENIED: INVALID CODE';
+    }
+  }
+  
+  // Call renderL4 initially
+  setTimeout(renderL4, 500);
+
+  // ─── LEVEL 5 LOGIC (DIJKSTRA) ───
+  let v5Running = false;
+  async function runViz5() {
+    if (v5Running) return; v5Running = true;
+    const canvas = document.getElementById('viz5');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    
+    // Coordinates roughly matching a readable network topology
+    const nodes = [
+      { id: 'Z1', n: 1, x: w*0.35, y: h*0.25, dist: Infinity, prev: null, done: false },
+      { id: 'Z2', n: 2, x: w*0.15, y: h*0.50, dist: Infinity, prev: null, done: false },
+      { id: 'Z3', n: 3, x: w*0.40, y: h*0.80, dist: Infinity, prev: null, done: false },
+      { id: 'Z4', n: 4, x: w*0.65, y: h*0.80, dist: Infinity, prev: null, done: false },
+      { id: 'Z5', n: 5, x: w*0.45, y: h*0.50, dist: Infinity, prev: null, done: false },
+      { id: 'Z6', n: 6, x: w*0.85, y: h*0.50, dist: Infinity, prev: null, done: false },
+      { id: 'Z7', n: 7, x: w*0.65, y: h*0.25, dist: Infinity, prev: null, done: false }
+    ];
+    
+    const INF = Infinity;
+    const adj = [
+      [0, 6, 9, INF, 3, INF, 4], // Z1
+      [6, 0, 5, 8, 2, INF, INF], // Z2
+      [9, 5, 0, 4, 7, 12, INF],  // Z3
+      [INF, 8, 4, 0, 6, 9, 10],  // Z4
+      [3, 2, 7, 6, 0, 11, 8],    // Z5
+      [INF, INF, 12, 9, 11, 0, 3], // Z6
+      [4, INF, INF, 10, 8, 3, 0]   // Z7
+    ];
+    
+    let edges = [];
+    for(let i=0; i<7; i++) {
+      for(let j=i+1; j<7; j++) {
+        if(adj[i][j] !== INF) edges.push({u:i, v:j, weight:adj[i][j], color:'rgba(255,60,60,0.2)', width:1});
+      }
+    }
+    
+    // Set source Z2 (index 1) to dist 0
+    nodes[1].dist = 0;
+    
+    let draw = () => {
+      ctx.clearRect(0,0,w,h);
+      
+      // Draw edges
+      edges.forEach(e => {
+        let n1 = nodes[e.u], n2 = nodes[e.v];
+        ctx.beginPath();
+        ctx.moveTo(n1.x, n1.y);
+        ctx.lineTo(n2.x, n2.y);
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = e.width;
+        ctx.stroke();
+        
+        // draw weight
+        let mx = (n1.x + n2.x)/2;
+        let my = (n1.y + n2.y)/2;
+        ctx.fillStyle = 'rgba(255,60,60,0.8)';
+        ctx.font = '12px Share Tech Mono';
+        ctx.fillText(e.weight, mx, my);
+      });
+      
+      // Draw nodes
+      nodes.forEach(n => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 18, 0, Math.PI*2);
+        ctx.fillStyle = n.done ? 'var(--cyan)' : (n.dist !== INF ? 'rgba(0,212,255,0.3)' : 'rgba(255,60,60,0.1)');
+        ctx.fill();
+        ctx.strokeStyle = n.done ? 'var(--cyan)' : 'var(--red)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = n.done ? '#000' : 'var(--red)';
+        ctx.font = '12px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(n.id, n.x, n.y);
+        
+        // draw dist
+        ctx.fillStyle = n.done ? 'var(--cyan)' : 'rgba(255,60,60,0.6)';
+        ctx.font = '10px Share Tech Mono';
+        ctx.fillText(n.dist === INF ? '∞' : n.dist, n.x, n.y + 28);
+      });
+    };
+    
+    draw();
+    await sleep(800);
+    
+    // Dijkstra
+    for(let step=0; step<7; step++) {
+      let u = -1, minDist = INF;
+      for(let i=0; i<7; i++) {
+        if(!nodes[i].done && nodes[i].dist < minDist) {
+          minDist = nodes[i].dist;
+          u = i;
+        }
+      }
+      if(u === -1) break;
+      
+      // Mark as done
+      nodes[u].done = true;
+      draw();
+      await sleep(600);
+      
+      // Relax neighbors
+      for(let v=0; v<7; v++) {
+        if(!nodes[v].done && adj[u][v] !== INF) {
+          // highlight edge briefly
+          let e = edges.find(ed => (ed.u===u && ed.v===v) || (ed.u===v && ed.v===u));
+          if(e) { e.color = 'var(--cyan)'; e.width = 2; }
+          draw();
+          await sleep(300);
+          
+          if(nodes[u].dist + adj[u][v] < nodes[v].dist) {
+            nodes[v].dist = nodes[u].dist + adj[u][v];
+            nodes[v].prev = u;
+          }
+          if(e) { e.color = 'rgba(255,60,60,0.3)'; e.width = 1; }
+          draw();
+        }
+      }
+    }
+    
+    // Reconstruct path to Z6 (index 5)
+    let pathEdges = [];
+    let curr = 5;
+    while(nodes[curr].prev !== null) {
+      let p = nodes[curr].prev;
+      let e = edges.find(ed => (ed.u===curr && ed.v===p) || (ed.u===p && ed.v===curr));
+      if(e) pathEdges.push(e);
+      curr = p;
+    }
+    
+    // Highlight final path
+    for(let i=0; i<30; i++) {
+      pathEdges.forEach(e => {
+        e.color = (i%2===0) ? '#fff' : 'var(--cyan)';
+        e.width = 4;
+      });
+      draw();
+      await sleep(100);
+    }
+    pathEdges.forEach(e => {
+      e.color = 'var(--cyan)';
+      e.width = 4;
+    });
+    draw();
+    
+    v5Running = false;
+  }
+
+  function verifyL5Code() {
+    const val = document.getElementById('unlockCodeInput5').value.trim();
+    const res = document.getElementById('verifyResult5');
+    if (val === '25176') {
+      res.style.color = 'var(--green)';
+      res.textContent = 'ACCESS GRANTED: NETWORK SYNCHRONIZED';
+    } else {
+      res.style.color = 'var(--red)';
+      res.textContent = 'ACCESS DENIED: ROUTE INVALID';
+    }
+  }
+
+</script>
+</body>
+</html>
