@@ -68,7 +68,7 @@ Develop a dashboard/UI for showcasing algorithm execution and comparative analys
 
 # 📷 Screenshots
 
-(Add screenshots of your UI here)
+![alt text](<Screenshot 2026-05-20 000041.png>) ![alt text](<Screenshot 2026-05-20 000736.png>) ![alt text](<Screenshot 2026-05-20 000808.png>) ![alt text](<Screenshot 2026-05-20 000822.png>)
 
 ---
 
